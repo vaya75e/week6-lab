@@ -9,6 +9,7 @@ import (
 
     "moviehub/auth"
     "moviehub/store"
+    "moviehub/mw"
 )
 
 type registerReq struct {
@@ -61,30 +62,63 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 
 // เพิ่มหลังเพิ่มโค้ดใน handler/handler.go
 
+// dummyHash คือลายนิ้วมือหลอก ใช้เทียบเมื่อไม่พบอีเมล เพื่อให้เสียเวลาเท่ากัน
+var dummyHash, _ = auth.HashPassword("ไม่มีใครใช้รหัสนี้")
+
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
     var req loginReq
     if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
         writeError(w, http.StatusBadRequest, "BAD_JSON", "อ่านกล่อง JSON ไม่ออก")
         return
     }
+
     email := strings.ToLower(strings.TrimSpace(req.Email))
     m, err := h.Store.MemberByEmail(r.Context(), email)
+
     if errors.Is(err, store.ErrNotFound) {
+        auth.CheckPassword(dummyHash, req.Password)
         writeError(w, http.StatusUnauthorized, "BAD_CREDENTIALS", "อีเมลหรือรหัสผ่านไม่ถูกต้อง")
         return
     }
+
     if err != nil {
         internal(w, err)
         return
     }
+
     if !auth.CheckPassword(m.PasswordHash, req.Password) {
         writeError(w, http.StatusUnauthorized, "BAD_CREDENTIALS", "อีเมลหรือรหัสผ่านไม่ถูกต้อง")
         return
     }
+
     token, err := h.Tickets.Issue(m.ID, m.Role)
     if err != nil {
         internal(w, err)
         return
     }
-    writeJSON(w, http.StatusOK, map[string]any{"token": token, "member": m})
+
+    writeJSON(w, http.StatusOK, map[string]any{
+        "token": token,
+        "member": m,
+    })
+}
+
+
+//เพิ่ม fn Me
+func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
+    id, ok := mw.MemberID(r.Context())
+    if !ok {
+        writeError(w, http.StatusUnauthorized, "NO_TOKEN", "กรุณาเข้าสู่ระบบก่อน")
+        return
+    }
+    m, err := h.Store.MemberByID(r.Context(), id)
+    if errors.Is(err, store.ErrNotFound) {
+        writeError(w, http.StatusUnauthorized, "MEMBER_GONE", "ไม่พบบัญชีนี้แล้ว กรุณาเข้าสู่ระบบใหม่")
+        return
+    }
+    if err != nil {
+        internal(w, err)
+        return
+    }
+    writeJSON(w, http.StatusOK, m)
 }
