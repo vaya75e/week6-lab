@@ -8,13 +8,11 @@ import (
 	"strconv"
 
 	"moviehub/store"
-	// เพิ่มหลังจากใส่โค้ดใน auth/token.go
 	"moviehub/auth"
 )
 
 type Handler struct {
 	Store *store.Store
-	// เพิ่มหลังจากใส่โค้ดใน auth/token.go
 	Tickets *auth.Issuer
 }
 

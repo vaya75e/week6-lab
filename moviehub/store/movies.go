@@ -46,41 +46,29 @@ func (s *Store) SearchMovies(ctx context.Context, q string) ([]Movie, error) {
 	return out, rows.Err()
 }
 
+// MovieDetail คือหนังหนึ่งเรื่องพร้อมเรื่องย่อ ใช้กับหน้ารายละเอียด
+type MovieDetail struct {
+    Movie
+    Detail *string `json:"detail"`
+}
+
 // GetMovie ค้นหารายละเอียดหนังจาก ID
-func (s *Store) GetMovie(ctx context.Context, id int64) (Movie, error) {
-	var m Movie
-
-	err := s.Pool.QueryRow(ctx,
-		`SELECT m.id, m.title, m.title_th,
-		        (SELECT coalesce(g.name_th, g.name_en)
-		           FROM movie_genres mg
-		           JOIN genres g ON g.id = mg.genre_id
-		          WHERE mg.movie_id = m.id AND mg.position = 0),
-		        extract(year FROM m.release_date)::int,
-		        round(m.vote_average, 1)::float8,
-		        CASE
-		            WHEN m.poster_path LIKE 'http%' THEN m.poster_path
-		            ELSE 'https://image.tmdb.org/t/p/w500' || m.poster_path
-		        END
-		   FROM movies m
-		  WHERE m.id = $1`,
-		id,
-	).Scan(
-		&m.ID,
-		&m.Title,
-		&m.TitleTh,
-		&m.Genre,
-		&m.Year,
-		&m.Rating,
-		&m.Poster,
-	)
-
-	if errors.Is(err, pgx.ErrNoRows) {
-		return Movie{}, ErrNotFound
-	}
-	if err != nil {
-		return Movie{}, err
-	}
-
-	return m, nil
+func (s *Store) GetMovie(ctx context.Context, id int64) (MovieDetail, error) {
+    var m MovieDetail
+    err := s.Pool.QueryRow(ctx,
+        `SELECT m.id, m.title, m.title_th,
+                (SELECT coalesce(g.name_th, g.name_en) FROM movie_genres mg
+                   JOIN genres g ON g.id = mg.genre_id
+                  WHERE mg.movie_id = m.id AND mg.position = 0),
+                extract(year FROM m.release_date)::int,
+                round(m.vote_average, 1)::float8,
+                'https://image.tmdb.org/t/p/w500' || m.poster_path,
+                coalesce(m.overview_th, m.overview)
+         FROM movies m
+         WHERE m.id = $1`, id).
+        Scan(&m.ID, &m.Title, &m.TitleTh, &m.Genre, &m.Year, &m.Rating, &m.Poster, &m.Detail)
+    if errors.Is(err, pgx.ErrNoRows) {
+        return m, ErrNotFound
+    }
+    return m, err
 }

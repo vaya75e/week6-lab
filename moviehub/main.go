@@ -42,10 +42,8 @@ func main() {
     mux := http.NewServeMux()
     mux.HandleFunc("POST /api/auth/register", h.Register)
     mux.HandleFunc("POST /api/auth/login", h.Login)
-    
     mux.HandleFunc("GET /api/me", login(h.Me))
     mux.HandleFunc("GET /api/genres", h.Genres)
-
     mux.HandleFunc("GET /api/movies", h.SearchMovies)
     mux.HandleFunc("GET /api/movies/{id}", h.GetMovie)
     mux.HandleFunc("GET /api/movies/{id}/reviews", h.ListReviews)
@@ -64,6 +62,7 @@ func main() {
     // mux.HandleFunc("GET /api/admin/members", login(mw.RequireRole("admin", h.AdminMembers)))
 
     origins := strings.Split(os.Getenv("ALLOWED_ORIGINS"), ",")
+    
     port := os.Getenv("PORT") // Render ส่งมาให้ ในเครื่องไม่มีก็ใช้ 8080
     if port == "" {
         port = "8080"
